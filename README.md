@@ -1,243 +1,193 @@
+# Henric N64 Decompiler
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github.com/albertan017/LLM4Decompile/blob/main/samples/logo-dark.png">
-    <img alt="LLM4Decompile" src="https://github.com/albertan017/LLM4Decompile/blob/main/samples/logo-light.png" width=55%>
-  </picture>
-</p>
+A local decompilation and validation lab for experimenting with N64 MIPS functions,
+built on [LLM4Decompile](https://github.com/albertan017/LLM4Decompile).
 
-<p align="left">
-    📊&nbsp;<a href="#evaluation">Results</a>
-    | 🤗&nbsp;<a href="#models">Models</a>
-    | 🚀&nbsp;<a href="#quick-start">Quick Start</a>
-    | 📚&nbsp;<a href="#humaneval-decompile">HumanEval-Decompile</a>
-    | 📎&nbsp;<a href="#citation">Citation</a>
-    | 📝&nbsp;<a href="https://arxiv.org/abs/2403.05286">Paper</a>
-    | 🖥️&nbsp;<a href="https://colab.research.google.com/drive/1X5TuUKuNuksGJZz6Cc83KKI0ATBP9q7r?usp=sharing">Colab</a>
-    | ▶️&nbsp;<a href="https://www.youtube.com/watch?v=x7knF3Z1yLk">YouTube</a>
-</p>
+This fork adds a reproducible path from Ghidra pseudocode to a local model's C
+candidate, then checks that candidate against known behaviour. It also repairs
+dataset generation, training setup, token decoding, and repository paths.
 
-Reverse Engineering: Decompiling Binary Code with Large Language Models
+**Working project name:** Henric N64 Decompiler. The GitHub repository is currently
+`SpidermanTotro/LLM4Decompile`; clone commands below use that existing address.
+The Python package remains `n64`.
 
-## Fork maintenance and experimental N64 workflow
+## Current status
 
-This fork includes dataset-builder fixes, local inference requirements, regression tests,
-and an experimental [N64 validation workflow](n64/README.md). The upstream project and
-its published benchmarks target Linux x86-64. Loading weights successfully does not
-establish N64 accuracy; measure it with held-out functions and execution tests.
+| Area | What is available | Validation status |
+| --- | --- | --- |
+| Repository checks | Python, shell, JSON and YAML checks; regression suite | 32 tests passed, 2 ML tests skipped in the maintenance environment |
+| Dataset preparation | Ordered JSONL output, isolated compilation, spawn workers, overwrite protection | Host GCC regression tests passed |
+| Local inference | Offline checkpoint loading, optional CUDA four-bit inference, token budgets, output reports | GPU/model execution still needs validation |
+| Ghidra preparation | ELF32 big-endian MIPS checks, named-function extraction, headless command | Actual Ghidra/MIPS run still needs validation |
+| Candidate checking | Host reference/harness comparison; optional MIPS compilation | Five-case synthetic host fixture passed |
+| N64 execution | Emulator/hardware tests and exact binary matching | Pending |
+| Training | Corrected standalone data/token handling and local-model launcher | Tensor tests and actual training pending |
+
+Upstream model results measure its published benchmarks. They do not establish
+N64 accuracy for this fork. This update contains code and tools; it does not
+create or retrain a checkpoint.
+
+## Get the project
+
+For a fresh checkout:
 
 ```bash
-# From the repository root; these checks require Python and GCC, not model weights.
+mkdir -p "$HOME/src"
+cd "$HOME/src"
+git clone https://github.com/SpidermanTotro/LLM4Decompile.git
+cd LLM4Decompile
+```
+
+For an existing checkout, enter that directory and run `git pull --ff-only`.
+Keep existing local changes and checkpoints before updating.
+
+Use Python 3.10+ for the maintenance tools. For the ML stack, an isolated Python
+3.11 environment is a practical starting point when newer Python versions lack
+compatible wheels. GCC and Bash are required for the lightweight regression suite.
+
+## First: retest without model weights
+
+From the repository root:
+
+```bash
 python scripts/check_repo.py
 python -m n64.run --input n64/fixtures/add.pseudo.c --dry-run
 python -m n64.check --candidate n64/fixtures/add.reference.c
 ```
 
-Core dependencies are in `requirements.txt`; optional vLLM/TGI evaluation backends
-are in `evaluation/requirements.txt`, and training dependencies are in
-`train/requirements.txt`. See [the changelog](CHANGELOG.md) and
-[validation notes](docs/VALIDATION.md) for tested scope and pending GPU checks.
+The pseudocode fixture is synthetic. Its host harness checks five unsigned-addition
+cases, including 32-bit wrapping. The dry run validates prompt formatting and
+input hashing; exact token counting requires the model tokenizer.
 
+For a run that fails when any regression or YAML check is skipped:
 
-[![GitHub Tread](https://trendshift.io/api/badge/repositories/8664)](https://trendshift.io/repositories/8664)
-
-## Updates
-* [2025-10-04]: Release SK²Decompile: LLM-based Two-Phase Binary Decompilation from Skeleton to Skin. Phase 1 Structure Recovery (Skeleton): Transform binary/pseudo-code into obfuscated intermediate representations 🤗 [HF Link](https://huggingface.co/LLM4Binary/sk2decompile-struct-6.7b). Phase 2 Identifier Naming (Skin): Generate human-readable source code with meaningful identifiers 🤗 [HF Link](https://huggingface.co/LLM4Binary/sk2decompile-ident-6.7).
-* [2025-05-20]: Release [decompile-bench](https://huggingface.co/collections/LLM4Binary/decompile-bench-68259091c8d49d0ebd5efda9), contains two million binary-source function pairs for training, and 70K function pairs for evaluation. Please refer to the [decompile-bench](https://github.com/albertan017/LLM4Decompile/tree/main/decompile-bench) folder for details.
-* [2024-10-17]: Release [decompile-ghidra-100k](https://huggingface.co/datasets/LLM4Binary/decompile-ghidra-100k), a subset of 100k training samples (25k per optimization level). We provide a [training script](https://github.com/albertan017/LLM4Decompile/blob/main/train/README.md) that runs in ~3.5 hours on a single A100 40G GPU. It achieves a 0.26 re-executability rate, with a total cost of under $20 for quick replication of LLM4Decompile.
-* [2024-09-26]: Update a [Colab notebook](https://colab.research.google.com/drive/1X5TuUKuNuksGJZz6Cc83KKI0ATBP9q7r?usp=sharing) to demonstrate the usage of the LLM4Decompile model, including examples for the LLM4Decompile-End and LLM4Decompile-Ref models.
-* [2024-09-23]: Release [LLM4Decompile-9B-v2](https://huggingface.co/LLM4Binary/llm4decompile-9b-v2), fine-tuned based on [Yi-Coder-9B](https://huggingface.co/01-ai/Yi-Coder-9B), achieved a re-executability rate of **0.6494** on the Decompile benchmark.
-* [2024-06-19]: Release [V2](https://huggingface.co/LLM4Binary/llm4decompile-6.7b-v2) series (LLM4Decompile-Ref). V2 (1.3B-22B), building upon **Ghidra**, are trained on 2 billion tokens to **refine** the decompiled pseudo-code from Ghidra. The 22B-V2 version outperforms the 6.7B-V1.5 by an additional 40.1%. Please check the [ghidra folder](https://github.com/albertan017/LLM4Decompile/tree/main/ghidra) for details.
-* [2024-05-13]: Release [V1.5](https://huggingface.co/LLM4Binary/llm4decompile-6.7b-v1.5) series (LLM4Decompile-End, directly decompile binary using LLM). V1.5 are trained with a larger dataset (15B tokens) and a maximum token **length of 4,096**, with remarkable  performance (over **100% improvement**) compared to the previous model.
-* [2024-03-16]: Add [llm4decompile-6.7b-uo](https://huggingface.co/arise-sustech/llm4decompile-6.7b-uo) model which is trained without prior knowledge of the optimization levels (O0~O3), the average re-executability is around 0.219, performs the best in our models.
-
-## About
-* **LLM4Decompile** is the pioneering open-source large language model dedicated to decompilation. Its current version supports decompiling Linux x86_64 binaries, ranging from GCC's O0 to O3 optimization levels, into human-readable C source code. Our team is committed to expanding this tool's capabilities, with ongoing efforts to incorporate a broader range of architectures and configurations.
-* **LLM4Decompile-End** focuses on decompiling the binary directly. **LLM4Decompile-Ref** refines the pseudo-code decompiled by Ghidra.
-
-## Evaluation
-
-### Framework
-<p align="center">
-<img src="https://github.com/albertan017/LLM4Decompile/blob/main/samples/compile-decompile.png" alt="image" width="400" height="auto">
-</p>
-
-During compilation, the Preprocessor processes the source code (SRC) to eliminate comments and expand macros or includes. The cleaned code is then forwarded to the Compiler, which converts it into assembly code (ASM). This ASM is transformed into binary code (0s and 1s) by the Assembler. The Linker finalizes the process by linking function calls to create an executable file. Decompilation, on the other hand, involves converting binary code back into a source file. LLMs, being trained on text, lack the ability to process binary data directly. Therefore, binaries must be disassembled by ```Objdump``` into assembly language (ASM) first. It should be noted that binary and disassembled ASM are equivalent, they can be interconverted, and thus we refer to them interchangeably. Finally, the loss is computed between the decompiled code and source code to guide the training. To assess the quality of the decompiled code (SRC'), it is tested for its functionality through test assertions (re-executability).
-
-### Metrics
-* **Re-executability** evaluates whether the decompiled code can execute properly and pass all the predefined test cases.
-
-### Benchmarks
-* **HumanEval-Decompile** A collection of 164 C functions that exclusively rely on **standard** C libraries.
-* **ExeBench** A collection of 2,621 functions drawn from **real** projects, each utilizing user-defined functions, structures, and macros.
-
-
-### Results
-
-<p align="center">
-<img src="https://github.com/albertan017/LLM4Decompile/blob/main/samples/results_end_final.png" alt="results" width="800" height="auto">
-</p>
-
-<p align="center">
-<img src="https://github.com/albertan017/LLM4Decompile/blob/main/samples/results_refine_final.png" alt="image" width="800" height="auto">
-</p>
-
-## Models
-Our LLM4Decompile includes models with sizes between 1.3 billion and 33 billion parameters, and we have made these models available on Hugging Face.
-
-| Model                 | Checkpoint                                                        | Size | Re-executability       | Note |
-|-----------------------|-------------------------------------------------------------------|------|---------------------|----------------------|
-| **llm4decompile-1.3b-v1.5**| 🤗 [HF Link](https://huggingface.co/LLM4Binary/llm4decompile-1.3b-v1.5)   | 1.3B | **27.3%**   | Note 3 |
-| **llm4decompile-6.7b-v1.5**| 🤗 [HF Link](https://huggingface.co/LLM4Binary/llm4decompile-6.7b-v1.5)   | 6.7B | **45.4%**   | Note 3 |
-| **llm4decompile-1.3b-v2**| 🤗 [HF Link](https://huggingface.co/LLM4Binary/llm4decompile-1.3b-v2)   | 1.3B | **46.0%**   | Note 4 |
-| **llm4decompile-6.7b-v2**| 🤗 [HF Link](https://huggingface.co/LLM4Binary/llm4decompile-6.7b-v2)   | 6.7B | **52.7%**   | Note 4 |
-| **llm4decompile-9b-v2**| 🤗 [HF Link](https://huggingface.co/LLM4Binary/llm4decompile-9b-v2)   | 9B | **64.9%**  | Note 4 |
-| **llm4decompile-22b-v2**| 🤗 [HF Link](https://huggingface.co/LLM4Binary/llm4decompile-22b-v2)   | 22B | **63.6%**   | Note 4 |
-
-Note 3: V1.5 series are trained with a larger dataset (15B tokens) and a maximum token size of 4,096, with remarkable performance (over 100% improvement) compared to the previous model.
-
-Note 4: V2 series are built upon **Ghidra** and trained on 2 billion tokens to **refine** the decompiled pseudo-code from Ghidra. Check [ghidra folder](https://github.com/albertan017/LLM4Decompile/tree/main/ghidra) for details.
-
-## Quick Start
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1X5TuUKuNuksGJZz6Cc83KKI0ATBP9q7r?usp=sharing)
-
-**Setup:** Please use the script below to install the necessary environment.
+```bash
+python scripts/check_repo.py --strict
 ```
-git clone https://github.com/SpidermanTotro/LLM4Decompile.git
-cd LLM4Decompile
-python3 -m venv .venv
-source .venv/bin/activate
-# Install a GPU-compatible PyTorch build first, then the core dependencies.
+
+The checker reports every skip and its reason. Exit codes are 0 for success,
+1 for static/test failures, and 2 for incomplete strict validation. Install
+`PyYAML` to include YAML validation, and `train/requirements.txt` for tensor tests.
+
+## Run an existing local checkpoint
+
+Create or activate an isolated environment and install a GPU-compatible PyTorch
+build first. Then, from the repository root:
+
+```bash
 python -m pip install -r requirements.txt
+python -m pip install bitsandbytes
+
+mkdir -p n64/output
+python -m n64.run \
+  --model "$HOME/models/n64-decompiler/llm4decompile-9b-v2-n64" \
+  --input n64/fixtures/add.pseudo.c \
+  --output n64/output/add.refined.c \
+  --device cuda --load-in-4bit --max-new-tokens 512
 ```
 
-Here is an example of how to use our model (Revised for V1.5. For previous models, please check the corresponding model page at HF).
-Note: **Replace the "func0" with the function name you want to decompile**.
+The model directory must already contain its config, tokenizer and weight files.
+The runner loads locally with `local_files_only=True`. A local directory's name
+does not prove the weights were trained on N64 data.
 
-**Preprocessing:** Compile the C code into binary, and disassemble the binary into assembly instructions.
-```python
-import subprocess
-import os
-func_name = 'func0'
-OPT = ["O0", "O1", "O2", "O3"]
-fileName = 'samples/sample' #'path/to/file'
-for opt_state in OPT:
-    output_file = fileName +'_' + opt_state
-    input_file = fileName+'.c'
-    compile_command = f'gcc -o {output_file}.o {input_file} -{opt_state} -lm'#compile the code with GCC on Linux
-    subprocess.run(compile_command, shell=True, check=True)
-    compile_command = f'objdump -d {output_file}.o > {output_file}.s'#disassemble the binary file into assembly instructions
-    subprocess.run(compile_command, shell=True, check=True)
-    
-    input_asm = ''
-    with open(output_file+'.s') as f:#asm file
-        asm= f.read()
-        if '<'+func_name+'>:' not in asm: #IMPORTANT replace func0 with the function name
-            raise ValueError("compile fails")
-        asm = '<'+func_name+'>:' + asm.split('<'+func_name+'>:')[-1].split('\n\n')[0] #IMPORTANT replace func0 with the function name
-        asm_clean = ""
-        asm_sp = asm.split("\n")
-        for tmp in asm_sp:
-            if len(tmp.split("\t"))<3 and '00' in tmp:
-                continue
-            idx = min(
-                len(tmp.split("\t")) - 1, 2
-            )
-            tmp_asm = "\t".join(tmp.split("\t")[idx:])  # remove the binary code
-            tmp_asm = tmp_asm.split("#")[0].strip()  # remove the comments
-            asm_clean += tmp_asm + "\n"
-    input_asm = asm_clean.strip()
-    before = f"# This is the assembly code:\n"#prompt
-    after = "\n# What is the source code?\n"#prompt
-    input_asm_prompt = before+input_asm.strip()+after
-    with open(fileName +'_' + opt_state +'.asm','w',encoding='utf-8') as f:
-        f.write(input_asm_prompt)
+Four-bit inference needs working CUDA and bitsandbytes. A 16GB GPU is the intended
+local test setting, but fit and performance must be measured with the actual
+checkpoint and generation settings. Four-bit inference is not a QLoRA trainer.
+
+The command writes:
+
+- `add.refined.c`: extracted C candidate.
+- `add.refined.raw.txt`: raw decoded model output.
+- `add.refined.report.json`: input/config hashes, tokens, timing, device and peak allocated VRAM.
+
+Existing output files require an explicit `--overwrite`. Keep separate output
+names and versioned checkpoint directories when comparing runs.
+
+## Check the generated candidate
+
+```bash
+python -m n64.check \
+  --candidate n64/output/add.refined.c \
+  --report n64/output/add.validation.json
 ```
 
-Assembly instructions should be in the format:
+For another function, supply its known source with `--reference` and an observable
+test harness with `--harness`. Compilation errors, execution errors, mismatched
+outputs and timeouts fail validation.
 
-<FUNCTION_NAME>:\nOPERATIONS\nOPERATIONS\n
+With a MIPS cross compiler installed, add
+`--mips-compiler mips-linux-gnu-gcc` to request target compilation as well.
+Host behaviour and MIPS compilation are separate evidence.
+The report keeps `n64_execution_tested` false: this checker does not execute
+an N64 emulator or console.
 
-Typical assembly instructions may look like this:
-```
-<func0>:
-endbr64
-lea    (%rdi,%rsi,1),%eax
-retq
-```
+## Prepare real N64 inputs
 
+Use a big-endian MIPS ELF and an installed Ghidra headless launcher.
+The preparation command selects an exact named function and records provenance.
+See [the full N64 workflow](n64/README.md) for compiler flags and complete commands.
 
-**Decompilation:** Use LLM4Decompile to translate the assembly instructions into C:
-```python
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import torch
+A raw `.z64` ROM needs a suitable loader, address mapping and function boundaries.
+The current preparation tool accepts ELF input. It does not turn an entire ROM
+directly into a rebuilt game.
 
-model_path = 'LLM4Binary/llm4decompile-6.7b-v1.5' # V1.5 Model
-tokenizer = AutoTokenizer.from_pretrained(model_path)
-model = AutoModelForCausalLM.from_pretrained(model_path,torch_dtype=torch.bfloat16).cuda()
+## Training and datasets
 
-with open(fileName +'_' + OPT[0] +'.asm','r') as f:#optimization level O0
-    asm_func = f.read()
-inputs = tokenizer(asm_func, return_tensors="pt").to(model.device)
-with torch.no_grad():
-    outputs = model.generate(**inputs, max_new_tokens=2048)### max length to 4096, max new tokens should be below the range
-c_func_decompile = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+Start with a measured inference baseline and verified pseudocode/source pairs.
+Split by original source function or project before creating optimization variants.
+Keep compiler versions, ABI, optimization flags and data provenance with the records.
 
-with open(fileName +'.c','r') as f:#original file
-    func = f.read()
+- [Training guide](train/README.md): standalone fine-tuning and corrected data handling.
+- [LLaMA-Factory notes](train/llama_factory_llm4decompile/README.md): separate external framework setup.
+- [Dataset benchmark guide](decompile-bench/readme.md): upstream datasets and evaluation.
+- [Evaluation guide](evaluation/README.md): optional legacy evaluation backends.
 
-print(f'original function:\n{func}')# Note we only decompile one function, where the original file may contain multiple functions
-print(f'decompiled function:\n{c_func_decompile}')
-```
+The maintained training launcher requires a local model and a fresh output directory.
+Full-model 9B training on a 16GB GPU has not been established here. A tested
+adapter/QLoRA recipe remains future work.
 
-### Docker setup
+## Files and folders
 
-```
-# build docker
-docker build -t llm4decompile .
+| Path | Purpose |
+| --- | --- |
+| `n64/` | Preparation, local inference, validation and synthetic fixtures |
+| `scripts/check_repo.py` | Static checks, regression summary and strict mode |
+| `tests/` | Host compilation, dataset, prompt and training regressions |
+| `ghidra/` | Ghidra extraction script and example |
+| `train/` | Dataset compilation and training entrypoints |
+| `evaluation/` | Upstream/legacy model evaluation |
+| `decompile-bench/` | Upstream benchmark tooling |
+| `sk2decompile/` | Upstream skeleton/identifier recovery workflow |
+| `docs/VALIDATION.md` | Measured results and pending runtime checks |
+| `docs/UPSTREAM_README.md` | Preserved upstream-facing overview, model tables and citations |
 
-# run docker with GPU
-docker run --gpus all -it --name llm4decompile llm4decompile /bin/bash
+Core dependencies live in `requirements.txt`; training dependencies in
+`train/requirements.txt`; optional vLLM/TGI backends in
+`evaluation/requirements.txt`. Keep optional research frameworks in separate environments.
 
-# run demo.py (choose a model suitable for your resources before running)
-cd ghidra
-python demo.py
-```
+## Known gaps and next milestones
 
-## HumanEval-Decompile
-Data are stored in ``legacy-test/decompile-eval-executable-gcc-obj.json``, using JSON list format. There are 164*4 (O0, O1, O2, O3) samples, each with five keys:
+1. Execute the local checkpoint and record latency, VRAM, token counts and output quality.
+2. Verify Ghidra and cross compilation on real MIPS functions.
+3. Add held-out function harnesses, then emulator or hardware evidence.
+4. Run the tensor regressions and establish an appropriate training recipe.
+5. Validate optional Docker and research-framework workflows separately.
 
-*   ``task_id``: indicates the ID of the problem.
-*   ``type``: the optimization stage, is one of [O0, O1, O2, O3].
-*   ``c_func``: C solution for HumanEval problem. 
-*   ``c_test``: C test assertions.
-*   ``input_asm_prompt``: assembly instructions with prompts, can be derived as in our [preprocessing example](https://github.com/albertan017/LLM4Decompile?tab=readme-ov-file#quick-start).
+The legacy ColossalAI preparation path requires an unbundled
+`colossal_llama.dataset.spliced_and_tokenized_dataset` implementation.
+The SK2 R2I evaluator needs an external `metrics/R2I` component.
+These remain documented reference-workflow dependencies.
 
-Please check the [evaluation scripts](https://github.com/albertan017/LLM4Decompile/tree/main/evaluation).
+## History, credit and license
 
-## On Going
-* Larger training dataset with the cleaning process. (done:2024.05.13)
-* Support for popular languages/platforms and settings.
-* Support for executable binaries. (done:2024.05.13)
-* Integration with decompilation tools (e.g., Ghidra, Rizin)
+See [CHANGELOG.md](CHANGELOG.md) for fork changes and
+[docs/VALIDATION.md](docs/VALIDATION.md) for the audit scope.
+The original baseline is preserved on
+`checkpoint/before-n64-maintenance-20260930`.
 
-## License
-This code repository is licensed under the MIT and DeepSeek License.
-
-## Citation
-```
-@misc{tan2024llm4decompile,
-      title={LLM4Decompile: Decompiling Binary Code with Large Language Models}, 
-      author={Hanzhuo Tan and Qi Luo and Jing Li and Yuqun Zhang},
-      year={2024},
-      eprint={2403.05286},
-      archivePrefix={arXiv},
-      primaryClass={cs.PL}
-}
-```
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=albertan017/LLM4Decompile&type=Timeline)](https://star-history.com/#albertan017/LLM4Decompile&Timeline)
-
+This project derives from LLM4Decompile and retains the original
+[code license](LICENSE) and [bundled model license](LICENSE-MODEL). Check the terms
+of the checkpoint you actually use. The upstream papers, authors, checkpoint links and citations
+are preserved in [the upstream overview](docs/UPSTREAM_README.md).
+The new project title identifies this fork's work; upstream checkpoints retain
+their original names and attribution.
