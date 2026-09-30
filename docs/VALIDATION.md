@@ -16,7 +16,7 @@ syntax. A CPython syntax check does not substitute for executing Ghidra's Java A
 
 Environment: Python 3.12.14, GCC/binutils, Bash, PyYAML; no GPU/ML libraries.
 
-Final regression run: **34 tests: 32 passed, 2 explicitly skipped** (1.088 seconds).
+Regression run: **34 tests: 32 passed, 2 explicitly skipped**.
 Repository static checks passed for **51 Python files, 9 shell scripts, 3 JSON files,
 and 3 YAML files**. `git diff --check` passed after whitespace cleanup.
 The standalone synthetic dry run and the five-case host C reference check also passed.
@@ -45,8 +45,17 @@ python -m n64.check --candidate n64/fixtures/add.reference.c
 ```
 
 For training tensor checks, install the training dependencies in an isolated
-environment, then rerun the same checker. YAML parsing is reported as skipped if
-PyYAML is unavailable; install `PyYAML` to include it.
+environment, then require a run without skips:
+
+```bash
+python scripts/check_repo.py --strict
+```
+
+The checker prints regression counts and every skipped test with its reason.
+Strict mode returns exit code 2 when tests or YAML validation are skipped, and
+exit code 1 for check/test failures. A successful strict run still does not prove
+GPU inference or N64 execution. YAML parsing is reported as skipped if PyYAML is
+unavailable; install `PyYAML` to include it.
 
 ## Pending runtime validation
 
