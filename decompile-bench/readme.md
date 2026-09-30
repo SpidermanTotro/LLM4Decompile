@@ -73,7 +73,7 @@ They contains the following columns:
 For R2I, please refer to the [source project](https://github.com/e0mh4/R2I).
 
 ## Requirements
-* vllm >= 0.5.2
+* Install the optional dependencies from the repository root with `python -m pip install -r decompile-bench/requirements.txt`. Use a GPU-compatible vLLM environment.
 ```
 https://docs.vllm.ai/en/v0.5.2/getting_started/installation.html
 ```
@@ -116,11 +116,11 @@ python3 ./metrics/cal_edit_sim.py
 
 **Setup:** Please use the script below to install the necessary environment.
 ```
-git clone https://github.com/albertan017/LLM4Decompile.git
+git clone https://github.com/SpidermanTotro/LLM4Decompile.git
 cd LLM4Decompile
-conda create -n 'llm4decompile' python=3.9 -y
-conda activate llm4decompile
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r decompile-bench/requirements.txt
 ```
 
 Here is an example of how to use our model (For previous models, please check the corresponding model page at HF).
@@ -196,7 +196,7 @@ with open(fileName +'_' + OPT[0] +'.asm','r') as f:#optimization level O0
 inputs = tokenizer(asm_func, return_tensors="pt").to(model.device)
 with torch.no_grad():
     outputs = model.generate(**inputs, max_new_tokens=2048)### max length to 4096, max new tokens should be below the range
-c_func_decompile = tokenizer.decode(outputs[0][len(inputs[0]):-1])
+c_func_decompile = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 
 with open(fileName +'.c','r') as f:#original file
     func = f.read()
@@ -204,4 +204,5 @@ with open(fileName +'.c','r') as f:#original file
 print(f'original function:\n{func}')# Note we only decompile one function, where the original file may contain multiple functions
 print(f'decompiled function:\n{c_func_decompile}')
 ```
+
 

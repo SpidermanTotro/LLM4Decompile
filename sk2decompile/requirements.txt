@@ -1,0 +1,7 @@
+# Optional SK2 inference/evaluation dependencies; use an isolated environment.
+-r ../evaluation/requirements.txt
+pandas
+tree-sitter==0.24.0
+tree-sitter-c==0.23.4
+# Used by optional judge/embedding integrations, not the local N64 runner.
+openai

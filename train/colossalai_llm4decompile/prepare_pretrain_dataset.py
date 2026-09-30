@@ -11,16 +11,6 @@ import os
 import time
 from multiprocessing import cpu_count
 
-from colossal_llama.dataset.spliced_and_tokenized_dataset import (
-    ClosedToConstantLengthSplicedDataset,
-    supervised_tokenize_pretrain,
-)
-from datasets import dataset_dict, load_dataset
-from transformers import AutoTokenizer
-
-from colossalai.logging import get_dist_logger
-
-logger = get_dist_logger()
 
 
 def main():
@@ -39,6 +29,20 @@ def main():
     parser.add_argument("--max_length", type=int, default=8192, help="Max length of each spliced tokenized sequence")
     parser.add_argument("--num_spliced_dataset_bins", type=int, default=10, help="Number of spliced dataset bins")
     args = parser.parse_args()
+
+    try:
+        from colossal_llama.dataset.spliced_and_tokenized_dataset import (
+            ClosedToConstantLengthSplicedDataset,
+            supervised_tokenize_pretrain,
+        )
+        from datasets import dataset_dict, load_dataset
+        from transformers import AutoTokenizer
+
+        from colossalai.logging import get_dist_logger
+
+        logger = get_dist_logger()
+    except ImportError as error:
+        parser.error("Legacy preparation dependencies are unavailable: {}. The upstream snapshot omits colossal_llama.dataset.spliced_and_tokenized_dataset; see docs/VALIDATION.md.".format(error))
 
     if args.num_spliced_dataset_bins >= 100000:
         raise ValueError("Too many spliced divisions, must be smaller than 100000")
@@ -140,3 +144,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

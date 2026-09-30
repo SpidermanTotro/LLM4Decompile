@@ -62,9 +62,15 @@ SK2Decompile/
 
 ### Installation
 
+From the repository root, optional SK2 dependencies are installed with
+`python -m pip install -r sk2decompile/requirements.txt`.
+External R2I, IDA, Psychec, VERL, and LLaMA-Factory components require their own setup.
+See [validation notes](../docs/VALIDATION.md) for known gaps and tested scope.
+
+
 ```bash
-git clone https://github.com/yourusername/SK2Decompile.git
-cd SK2Decompile
+git clone https://github.com/SpidermanTotro/LLM4Decompile.git
+cd LLM4Decompile/sk2decompile
 ```
 
 ## Training Pipeline
@@ -80,7 +86,7 @@ cd Preprocess
 pip install tree-sitter==0.24.0 tree-sitter-c==0.23.4 tqdm
 
 # Step 1: Normalize pseudo-code according to R2I standard
-python3 normalize_pseudo.py --input_json exebench_c.json --output_json exebench_pseudonorm.json --key_name pseudo
+python3 ../evaluation/normalize_pseudo.py --input_json exebench_c.json --output_json exebench_pseudonorm.json --key_name pseudo
 
 # Step 2: Obfuscate source code to generate IR
 python3 normalize_src_basedonpseudo.py --input_json exebench_pseudonorm.json --output_json exebench_norm_top0.json --top 0 --pseudo pseudo_norm
@@ -99,8 +105,9 @@ Our two-phase SFT approach trains specialized models for each transformation:
 
 #### Setup LLaMA-Factory
 ```bash
-cd ../LLaMA-Factory
-# Follow installation instructions in LLaMA-Factory/README.md
+cd ..
+# Install LLaMA-Factory separately; this folder contains example data/configs only.
+# https://github.com/hiyouga/LLaMA-Factory
 ```
 
 #### Train Models
@@ -147,7 +154,7 @@ See [`verl/SK2DECOMPILE/README.md`](verl/SK2DECOMPILE/README.md) for the full re
 
 ## Evaluation
 ```
-cd ../evaluation
+cd evaluation
 ```
 
 **Inference**
@@ -156,7 +163,7 @@ pip install vllm
 apt install clang-format
 #translate the data into reverse_sample.json format
 python normalize_pseudo.py --input_json reverse_sample.json --output_json reverse_sample.json
-python sk2decompile.py --dataset_path reverse_sample.json --model_path LLM4Binary/sk2decompile-struct-6.7b --recover_model_path LLM4Binary/sk2decompile-ident-6.7b
+python sk2decompile_inf.py --dataset_path reverse_sample.json --model_path LLM4Binary/sk2decompile-struct-6.7b --recover_model_path LLM4Binary/sk2decompile-ident-6.7
 ```
 
 **Detailed version**
@@ -169,9 +176,9 @@ python sk2decompile.py --dataset_path reverse_sample.json --model_path LLM4Binar
 
    ```bash
    python normalize_pseudo.py --input_json reverse_sample.json --output_json reverse_sample.json
-   python sk2decompile.py --dataset_path reverse_sample.json \
+   python sk2decompile_inf.py --dataset_path reverse_sample.json \
        --model_path LLM4Binary/sk2decompile-struct-6.7b \
-       --recover_model_path LLM4Binary/sk2decompile-ident-6.7b
+       --recover_model_path LLM4Binary/sk2decompile-ident-6.7
    ```
 
 **Model page:**
@@ -261,3 +268,4 @@ We thank the developers of:
 ---
 
 For detailed documentation on each component, please refer to the individual README files in each directory.
+

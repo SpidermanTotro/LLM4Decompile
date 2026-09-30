@@ -1,7 +1,6 @@
-torch
+-r ../requirements.txt
+datasets
 tokenizers
-transformers
-accelerate
 sympy
 pebble 
 timeout-decorator 

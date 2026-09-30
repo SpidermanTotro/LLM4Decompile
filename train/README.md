@@ -8,7 +8,7 @@ We provide script `finetune.py`, adapted from the [deepseek-coder](https://githu
 The script supports the training with [DeepSpeed](https://github.com/microsoft/DeepSpeed). You need install required packages by:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r train/requirements.txt  # from the repository root
 ```
 
 If you want to leverage FlashAttention to accelerate training, install it via:
@@ -28,15 +28,16 @@ DATA_PATH="${WORKSPACE}/decompile-ghidra-100k.json"
 OUTPUT_PATH="${WORKSPACE}/output_models/llm4decompile-ref"
 MODEL_PATH="deepseek-ai/deepseek-coder-1.3b-base"
 
-CUDA_VISIBLE_DEVICES=0 deepspeed finetune.py \
+CUDA_VISIBLE_DEVICES=0 deepspeed train/finetune.py \
     --model_name_or_path $MODEL_PATH \
     --data_path $DATA_PATH \
     --output_dir $OUTPUT_PATH \
     --num_train_epochs 2 \
     --model_max_length 1024 \
+    --preprocessing_num_workers 4 \
     --per_device_train_batch_size 16 \
     --gradient_accumulation_steps 16 \
-    --evaluation_strategy "no" \
+    --eval_strategy "no" \
     --save_strategy "steps" \
     --use_flash_attention \
     --save_steps 100 \
@@ -63,5 +64,26 @@ git clone https://github.com/brenocfg/AnghaBench
 
 Then use the following script to compile AnghaBench:
 ```bash
-python compile.py --root Anghabench_path --output AnghaBench_compile.jsonl
+python train/compile.py --root /path/to/AnghaBench --output /path/to/AnghaBench_compile.jsonl --jobs 4
 ```
+
+
+## Dataset-builder behaviour
+
+Workers compile in temporary directories; a single parent writes deterministic JSONL
+and atomically replaces the destination only after at least one successful sample.
+Existing outputs require `--overwrite`; failures preserve an existing destination
+when no sample compiles. `--compiler`, `--objdump`, `--jobs`, and `--timeout` are configurable.
+The default pipeline uses the host compiler, so its output is not automatically N64 data.
+Its legacy schema (`input`, `input_ori`, `output`) must be converted into
+`instruction`/`output` records before passing it to `finetune.py`.
+
+## Training scope
+
+`finetune.py` performs full-model supervised fine-tuning. A 9B model on a 16GB GPU
+needs a separately configured adapter/QLoRA workflow; this full-model example is
+not a verified 16GB training recipe. Use a fresh output directory and retain the
+original checkpoint. The worker count defaults to at most four and can be changed
+with `--preprocessing_num_workers`. Standalone and distributed preprocessing use
+Trainer's `main_process_first`, and real EOS tokens remain attended when EOS doubles
+as the padding token.

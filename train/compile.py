@@ -1,123 +1,112 @@
-import glob
-import json
-import subprocess
-import os
-import multiprocessing
-import re
+"""Build source/assembly JSONL with one atomic parent-process writer."""
 import argparse
+import json
+import multiprocessing
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
 
-zeros_pattern = r"^0+\s"  # 0000000000000...
-OPT = ["O0", "O1", "O2", "O3"]  # Optimization states
+OPT = ["O0", "O1", "O2", "O3"]
 
 
-def compile_and_write(input_file, output_file):
-    base_output_file = input_file.replace(".c", "")
-    asm_all = {}
-    input_text = open(input_file).read()  # Read input file
-    if "/* Variables and functions */" in input_text:
-        # Exclude macro and types
-        input_text = input_text.split("/* Variables and functions */")[-1]
-        input_text = "\n\n".join(input_text.split("\n\n")[1:])  # Exclude variables
-        ##### begin of remove __attribute__
-        input_text = input_text.replace("__attribute__((used)) ", "")
-        ##### end of remove __attribute__
+def compile_file(input_file, compiler="gcc", objdump="objdump", timeout=30):
+    source = Path(input_file).read_text(encoding="utf-8")
+    processed = source
+    if "/* Variables and functions */" in processed:
+        processed = processed.split("/* Variables and functions */")[-1]
+        processed = "\n\n".join(processed.split("\n\n")[1:])
+        processed = processed.replace("__attribute__((used)) ", "")
+    assembly_by_opt = {}
+    with tempfile.TemporaryDirectory(prefix="llm4decompile-") as directory:
+        for opt in OPT:
+            obj = str(Path(directory) / (opt + ".o"))
+            subprocess.run([compiler, "-c", "-o", obj, str(input_file), "-" + opt],
+                           check=True, capture_output=True, text=True, timeout=timeout)
+            result = subprocess.run([objdump, "-d", obj], check=True,
+                                    capture_output=True, text=True, timeout=timeout)
+            lines = result.stdout.split("Disassembly of section .text:")[-1].strip().splitlines()
+            assembly = "\n".join(re.sub(r"^0+\s", "", line.split("\t")[-1].split("#", 1)[0].strip()) for line in lines) + "\n"
+            if len(assembly.splitlines()) < 4:
+                raise ValueError("No usable text-section assembly: " + str(input_file))
+            assembly_by_opt["opt-state-" + opt] = assembly
+    return {"name": str(input_file), "input": processed, "input_ori": source,
+            "output": assembly_by_opt}
+
+
+def _compile_task(task):
     try:
-        for opt_state in OPT:
-            obj_output = base_output_file + "_" + opt_state + ".o"
-            asm_output = base_output_file + "_" + opt_state + ".s"
+        return compile_file(*task), None
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        return None, str(task[0]) + ": " + (getattr(error, "stderr", "") or str(error)).strip()
 
-            # Compile the C program to object file
-            subprocess.run(
-                ["gcc", "-c", "-o", obj_output, input_file, "-" + opt_state],
-                check=True,
-            )
 
-            # Generate assembly code from object file using objdump
-            subprocess.run(
-                f"objdump -d {obj_output} > {asm_output}",
-                shell=True,  # Use shell to handle redirection
-                check=True,
-            )
-
-            with open(asm_output) as f:
-                asm = f.read()
-                ##### start of clean up
-                asm_clean = ""
-                asm = asm.split("Disassembly of section .text:")[-1].strip()
-                for tmp in asm.split("\n"):
-                    tmp_asm = tmp.split("\t")[-1]  # remove the binary code
-                    tmp_asm = tmp_asm.split("#")[0].strip()  # remove the comments
-                    asm_clean += tmp_asm + "\n"
-                if len(asm_clean.split("\n")) < 4:
-                    raise ValueError("compile fails")
-                asm = asm_clean
-                ##### end of clean up
-
-                ##### start of filter digits and attribute
-                asm = re.sub(zeros_pattern, "", asm)
-                asm = asm.replace("__attribute__((used)) ", "")
-                ##### end of filter digits
-
-                asm_all["opt-state-" + opt_state] = asm
-
-            # Remove the object file
-            if os.path.exists(obj_output):
-                os.remove(obj_output)
-
-    except Exception as e:
-        print(f"Error in file {input_file}: {e}")
-        return
+def build_dataset(root, output, jobs=None, compiler="gcc", objdump="objdump",
+                  timeout=30, overwrite=False):
+    root, output = Path(root), Path(output)
+    jobs = min(4, os.cpu_count() or 1) if jobs is None else jobs
+    if jobs < 1 or timeout <= 0:
+        raise ValueError("jobs and timeout must be positive")
+    if output.exists() and not overwrite:
+        raise FileExistsError(str(output) + " exists; pass --overwrite to replace it")
+    sources = sorted(root.rglob("*.c"))
+    if not sources:
+        raise ValueError("No C files found under " + str(root))
+    if output.resolve() in [path.resolve() for path in sources]:
+        raise ValueError("Output must not replace a source file")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    tasks = [(str(path), compiler, objdump, timeout) for path in sources]
+    pool, temporary = None, None
+    succeeded, failed = 0, 0
+    try:
+        if jobs == 1:
+            results = map(_compile_task, tasks)
+        else:
+            pool = multiprocessing.get_context("spawn").Pool(min(jobs, len(tasks)))
+            results = pool.imap(_compile_task, tasks)
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent,
+                                         delete=False) as stream:
+            temporary = Path(stream.name)
+            for sample, error in results:
+                if error:
+                    failed += 1
+                    print(error, file=sys.stderr)
+                else:
+                    stream.write(json.dumps(sample, ensure_ascii=False) + "\n")
+                    succeeded += 1
+        if not succeeded:
+            raise ValueError("All files failed compilation; existing output was preserved")
+        os.replace(temporary, output)
+        temporary = None
     finally:
-        # Remove the assembly output files
-        for opt_state in OPT:
-            asm_output = base_output_file + "_" + opt_state + ".s"
-            if os.path.exists(asm_output):
-                os.remove(asm_output)
-
-    sample = {
-        "name": input_file,
-        "input": input_text,  # Use the processed input text
-        "input_ori": open(input_file).read(),
-        "output": asm_all,  # Use the asm_all
-    }
-
-    # Write to file
-    write_to_file(output_file, sample)
+        if pool is not None:
+            pool.close()
+            pool.join()
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return {"compiled": succeeded, "failed": failed, "output": str(output)}
 
 
-def write_to_file(file_path, data):
-    with multiprocessing.Lock():
-        with open(file_path, "a") as f:
-            json.dump(data, f)
-            f.write("\n")
-
-
-def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Compile C files and generate JSONL output."
-    )
-    parser.add_argument(
-        "--root",
-        required=True,
-        help="Root directory where AnghaBench files are located.",
-    )
-    parser.add_argument("--output", required=True, help="Path to JSONL output file.")
-    args = parser.parse_args()
-    return args
-
-
-def main():
-    args = parse_args()
-    root = args.root
-    jsonl_output_file = args.output
-    files = glob.glob(f"{root}/**/*.c", recursive=True)
-
-    with multiprocessing.Pool(32) as pool:
-        from functools import partial
-
-        compile_write_func = partial(compile_and_write, output_file=jsonl_output_file)
-        pool.map(compile_write_func, files)
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--jobs", type=int, default=min(4, os.cpu_count() or 1))
+    parser.add_argument("--compiler", default="gcc")
+    parser.add_argument("--objdump", default="objdump")
+    parser.add_argument("--timeout", type=float, default=30)
+    parser.add_argument("--overwrite", action="store_true")
+    args = parser.parse_args(argv)
+    try:
+        result = build_dataset(args.root, args.output, args.jobs, args.compiler,
+                               args.objdump, args.timeout, args.overwrite)
+    except (OSError, ValueError) as error:
+        parser.exit(1, str(error) + "\n")
+    print(json.dumps(result))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

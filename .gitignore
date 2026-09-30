@@ -172,3 +172,10 @@ cython_debug/
 flagged/
 *.sh
 logs/
+
+# Local N64 runs and checkpoints
+n64/output/
+output_models/
+models/
+*.safetensors
+*.gguf

@@ -13,11 +13,14 @@ using Headless scripts with Ghidra.
 Modified from https://github.com/galoget/ghidra-headless-scripts
 """
 
+from __future__ import print_function
 import sys
 from ghidra.app.decompiler import DecompInterface
 from ghidra.util.task import ConsoleTaskMonitor
 import __main__ as ghidra_app
 args = ghidra_app.getScriptArgs()
+if len(args) != 1:
+    raise ValueError("Expected one output path")
 
 # Communicates with Decompiler Interface
 decompinterface = DecompInterface()
@@ -29,19 +32,19 @@ decompinterface.openProgram(currentProgram);
 functions = currentProgram.getFunctionManager().getFunctions(True)
 
 # Prints Current Python version (2.7)
-print "Current Python version: " + str(sys.version.decode())
+print("Current Python version: " + str(sys.version))
 
 # Iterates through all functions in the binary and decompiles them
 # Then prints the Pseudo C Code
 
-with open(args[0], "w") as output_file:
-    for function in list(functions):
-        # Add a comment with the name of the function
-        # print "// Function: " + str(function)
-        output_file.write("// Function: " + str(function))
-
-        # Decompile each function
-        decompiled_function = decompinterface.decompileFunction(function, 0, ConsoleTaskMonitor())
-        # Print Decompiled Code
-        # print decompiled_function.getDecompiledFunction().getC()
-        output_file.write(decompiled_function.getDecompiledFunction().getC())
+try:
+    with open(args[0], "w") as output_file:
+        for function in functions:
+            result = decompinterface.decompileFunction(function, 60, ConsoleTaskMonitor())
+            if not result.decompileCompleted() or result.getDecompiledFunction() is None:
+                print("Failed to decompile " + str(function) + ": " + str(result.getErrorMessage()))
+                continue
+            output_file.write("// Function: " + str(function.getName()) + "\n")
+            output_file.write(result.getDecompiledFunction().getC() + "\n\n")
+finally:
+    decompinterface.dispose()

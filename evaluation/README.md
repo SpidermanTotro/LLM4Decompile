@@ -1,46 +1,34 @@
-## Updates
-* [Note]: Please use ``decompile-eval-executable-gcc-ghidra.json`` for **V2 models**. The source codes are compiled into executable binaries and **decompiled by Ghidra into pseudo-code**.
-* [Note]: Please use ``decompile-eval-executable-gcc-obj.json`` for **V1.5 models**. The source codes are compiled into executable binaries and **disassembled into assembly instructions**.
-* [2024-04-10]: Add vllm evaluation script.
+# Evaluation
 
+Run commands from the repository root. V1.5 consumes disassembly; V2 consumes
+Ghidra pseudocode. These published datasets test x86-64, not N64.
 
-To run the evaluation using [vLLM](https://github.com/vllm-project/vllm) (**Recommended**)
+## Single GPU
+
 ```bash
-pip install -r requirements.txt
-```
-To use the flash-attention backend to speed up the interface, you can install it via `pip install flash-attn`.
-```bash
-cd evaluation
-# Before running the evaluation script, please update the model_path to your local model path.
-python run_evaluation_llm4decompile_vllm.py \
-  --model_path LLM4Binary/llm4decompile-6.7b-v1.5 \
-  --testset_path ../decompile-eval/decompile-eval-executable-gcc-obj.json \
-  --gpus 8 \
-  --max_total_tokens 8192 \
-  --max_new_tokens 512 \
-  --repeat 1 \
-  --num_workers 16 \
-  --gpu_memory_utilization 0.82 \
-  --temperature 0 
+python -m pip install -r requirements.txt
+python evaluation/run_evaluation_llm4decompile_singleGPU.py \
+  --model_path /path/to/local/v2-checkpoint \
+  --data_path legacy-test/decompile-eval-executable-gcc-ghidra.json
 ```
 
----
-To run the evaluation on single GPU and single process: (legacy, not updated)
+For V1.5, use `legacy-test/decompile-eval-executable-gcc-obj.json`.
+Generated code is compiled and executed in temporary directories with timeouts.
+
+## Optional vLLM backend
+
+Install its dependencies in a separate environment with a GPU-compatible vLLM build.
+
 ```bash
-cd LLM4Decompile
-python ./evaluation/run_evaluation_llm4decompile_singleGPU.py
+python -m pip install -r evaluation/requirements.txt
+python evaluation/run_evaluation_llm4decompile_vllm.py \
+  --model_path /path/to/local/v2-checkpoint \
+  --testset_path legacy-test/decompile-eval-executable-gcc-ghidra.json \
+  --gpus 1 --max_total_tokens 4096 --max_new_tokens 512 \
+  --repeat 1 --num_workers 4 --gpu_memory_utilization 0.82 --temperature 0
 ```
----
-To run the evaluation using TGI (10x faster, support multiple GPUs and multi-process): (legacy, not updated)
-First, please install the text-generation-inference following the official [link](https://github.com/huggingface/text-generation-inference)
-```bash
-git clone https://github.com/albertan017/LLM4Decompile.git
-cd LLM4Decompile
-pip install -r requirements.txt
 
-# Before running the evaluation script, please update the model_path to your local model path.
-bash ./scripts/run_evaluation_llm4decompile.sh
-```
----
-
-
+The TGI launcher `scripts/run_evaluation_llm4decompile.sh` requires an external
+TGI installation and accepts `MODEL_PATH`, `TESTSET_PATH`, `NUM_SHARDS`, and
+`NUM_WORKERS`. The default paths now point to the actual `legacy-test` folder.
+See [N64 checks](../n64/README.md) for the experimental local workflow.

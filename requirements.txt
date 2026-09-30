@@ -1,6 +1,8 @@
+# Core local inference. Install a PyTorch build appropriate for your GPU first.
+torch>=2.7
+transformers>=4.45,<5
+accelerate>=0.34
+safetensors>=0.4
 tqdm
 loguru
-tqdm
-text_generation
-vllm==0.4.0
-numpy==1.23.3
+numpy>=1.26

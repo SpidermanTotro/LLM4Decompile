@@ -1,4 +1,5 @@
 import copy
+import os
 import random
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Sequence
@@ -37,6 +38,7 @@ class DataArguments:
     data_path: str = field(
         default=None, metadata={"help": "Path to the training data."}
     )
+    preprocessing_num_workers: int = field(default=min(4, os.cpu_count() or 1))
 
 
 @dataclass
@@ -68,7 +70,7 @@ def _tokenize_fn(
 
     input_ids = labels = [tokenized.input_ids[0] for tokenized in tokenized_list]
     input_ids_lens = labels_lens = [
-        tokenized.input_ids.ne(tokenizer.pad_token_id).sum().item()
+        tokenized.input_ids.shape[-1]
         for tokenized in tokenized_list
     ]
 
@@ -117,10 +119,13 @@ class DataCollatorForSupervisedDataset(object):
             labels, batch_first=True, padding_value=IGNORE_INDEX
         )
 
+        # Padding may share the EOS ID; real EOS tokens must remain attended.
+        lengths = torch.tensor([len(instance["input_ids"]) for instance in instances])
+        attention_mask = torch.arange(input_ids.shape[1]).unsqueeze(0) < lengths.unsqueeze(1)
         return dict(
             input_ids=input_ids,
             labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
+            attention_mask=attention_mask,
         )
 
 
@@ -139,8 +144,10 @@ def train():
         (ModelArguments, DataArguments, TrainingArguments)
     )
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+    if data_args.preprocessing_num_workers < 1:
+        raise ValueError("preprocessing_num_workers must be positive")
 
-    if training_args.local_rank == 0:
+    if training_args.should_log:
         print("=" * 100)
         print(training_args)
 
@@ -160,7 +167,7 @@ def train():
     print("BOS Token", tokenizer.bos_token, tokenizer.bos_token_id)
     print("EOS Token", tokenizer.eos_token, tokenizer.eos_token_id)
 
-    if training_args.local_rank == 0:
+    if training_args.should_log:
         print("Load tokenizer from {} over.".format(model_args.model_name_or_path))
 
     model_kwargs = {}
@@ -171,7 +178,7 @@ def train():
         model_args.model_name_or_path, torch_dtype=torch.bfloat16, **model_kwargs
     )
 
-    if training_args.local_rank == 0:
+    if training_args.should_log:
         print("Load model from {} over.".format(model_args.model_name_or_path))
 
     raw_train_datasets = load_dataset(
@@ -180,26 +187,24 @@ def train():
         split="train",
         cache_dir=training_args.cache_dir,
     )
-    if training_args.local_rank > 0:
-        torch.distributed.barrier()
+    if not len(raw_train_datasets):
+        raise ValueError("Training dataset is empty")
+    # Handles both direct single-process invocation and initialized DDP.
+    with training_args.main_process_first(desc="dataset tokenization"):
+        train_dataset = raw_train_datasets.map(
+            train_tokenize_function,
+            batched=True,
+            batch_size=3000,
+            num_proc=min(data_args.preprocessing_num_workers, len(raw_train_datasets)),
+            remove_columns=raw_train_datasets.column_names,
+            load_from_cache_file=True,
+            desc="Running Encoding",
+            fn_kwargs={"tokenizer": tokenizer},
+        )
 
-    train_dataset = raw_train_datasets.map(
-        train_tokenize_function,
-        batched=True,
-        batch_size=3000,
-        num_proc=32,
-        remove_columns=raw_train_datasets.column_names,
-        load_from_cache_file=True,  # not args.overwrite_cache
-        desc="Running Encoding",
-        fn_kwargs={"tokenizer": tokenizer},
-    )
-
-    if training_args.local_rank == 0:
-        torch.distributed.barrier()
-
-    if training_args.local_rank == 0:
+    if training_args.should_log:
         print("Training dataset samples:", len(train_dataset))
-        for index in random.sample(range(len(train_dataset)), 3):
+        for index in random.sample(range(len(train_dataset)), min(3, len(train_dataset))):
             print(
                 f"Sample {index} of the training set: {train_dataset[index]['input_ids']}, {train_dataset[index]['labels']}."
             )

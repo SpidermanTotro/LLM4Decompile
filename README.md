@@ -19,6 +19,26 @@
 
 Reverse Engineering: Decompiling Binary Code with Large Language Models
 
+## Fork maintenance and experimental N64 workflow
+
+This fork includes dataset-builder fixes, local inference requirements, regression tests,
+and an experimental [N64 validation workflow](n64/README.md). The upstream project and
+its published benchmarks target Linux x86-64. Loading weights successfully does not
+establish N64 accuracy; measure it with held-out functions and execution tests.
+
+```bash
+# From the repository root; these checks require Python and GCC, not model weights.
+python scripts/check_repo.py
+python -m n64.run --input n64/fixtures/add.pseudo.c --dry-run
+python -m n64.check --candidate n64/fixtures/add.reference.c
+```
+
+Core dependencies are in `requirements.txt`; optional vLLM/TGI evaluation backends
+are in `evaluation/requirements.txt`, and training dependencies are in
+`train/requirements.txt`. See [the changelog](CHANGELOG.md) and
+[validation notes](docs/VALIDATION.md) for tested scope and pending GPU checks.
+
+
 [![GitHub Tread](https://trendshift.io/api/badge/repositories/8664)](https://trendshift.io/repositories/8664)
 
 ## Updates
@@ -84,11 +104,12 @@ Note 4: V2 series are built upon **Ghidra** and trained on 2 billion tokens to *
 
 **Setup:** Please use the script below to install the necessary environment.
 ```
-git clone https://github.com/albertan017/LLM4Decompile.git
+git clone https://github.com/SpidermanTotro/LLM4Decompile.git
 cd LLM4Decompile
-conda create -n 'llm4decompile' python=3.9 -y
-conda activate llm4decompile
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+# Install a GPU-compatible PyTorch build first, then the core dependencies.
+python -m pip install -r requirements.txt
 ```
 
 Here is an example of how to use our model (Revised for V1.5. For previous models, please check the corresponding model page at HF).
@@ -161,7 +182,7 @@ with open(fileName +'_' + OPT[0] +'.asm','r') as f:#optimization level O0
 inputs = tokenizer(asm_func, return_tensors="pt").to(model.device)
 with torch.no_grad():
     outputs = model.generate(**inputs, max_new_tokens=2048)### max length to 4096, max new tokens should be below the range
-c_func_decompile = tokenizer.decode(outputs[0][len(inputs[0]):-1])
+c_func_decompile = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 
 with open(fileName +'.c','r') as f:#original file
     func = f.read()
@@ -185,7 +206,7 @@ python demo.py
 ```
 
 ## HumanEval-Decompile
-Data are stored in ``llm4decompile/decompile-eval/decompile-eval-executable-gcc-obj.json``, using JSON list format. There are 164*4 (O0, O1, O2, O3) samples, each with five keys:
+Data are stored in ``legacy-test/decompile-eval-executable-gcc-obj.json``, using JSON list format. There are 164*4 (O0, O1, O2, O3) samples, each with five keys:
 
 *   ``task_id``: indicates the ID of the problem.
 *   ``type``: the optimization stage, is one of [O0, O1, O2, O3].
@@ -219,3 +240,4 @@ This code repository is licensed under the MIT and DeepSeek License.
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=albertan017/LLM4Decompile&type=Timeline)](https://star-history.com/#albertan017/LLM4Decompile&Timeline)
+

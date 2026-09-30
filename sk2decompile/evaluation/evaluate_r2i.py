@@ -1,8 +1,6 @@
 import json
 import argparse
 import os
-from metrics.R2I.run import run_r2i
-from inf_type import process_one
 import warnings
 import sys
 import shutil
@@ -16,6 +14,11 @@ if __name__ == "__main__":
     arg_parser.add_argument("--generator", default="./psychec/psychecgen", help="Path to your generator executable")
     arg_parser.add_argument("--solver", default="./psychec/psychecsolver-exe", help="Name of your solver (for `stack exec …`)") 
     args = arg_parser.parse_args()
+    try:
+        from metrics.R2I.run import run_r2i
+        from inf_type import process_one
+    except ImportError as error:
+        arg_parser.error("R2I dependencies are unavailable: {}. Install the external metrics/R2I component from https://github.com/e0mh4/R2I; see docs/VALIDATION.md.".format(error))
     
     decompilers = args.decompilers.split(",")
     if len(decompilers) < 2:

@@ -1,3 +1,7 @@
+> Legacy reference: this snapshot omits `colossal_llama.dataset.spliced_and_tokenized_dataset`.
+> The preparation CLI can display help, but the original preparation implementation
+> must be supplied before an end-to-end run. See [validation notes](../../docs/VALIDATION.md).
+
 ## Guide for Training the Model
 
 We recommend using the [Colossal AI](https://github.com/hpcaitech/ColossalAI) framework to train **LLM4Decompile**. For more details, please refer to the [Colossal-LLaMA](https://github.com/hpcaitech/ColossalAI/tree/main/applications/Colossal-LLaMA) application documentation.
@@ -35,3 +39,4 @@ Once the environment is properly configured, initiate the training process by ex
 ```bash
 bash run_llm4decompile_train.sh
 ```
+

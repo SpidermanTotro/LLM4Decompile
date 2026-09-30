@@ -31,7 +31,7 @@ ENV PATH=${GHIDRA_DIR}:$PATH
 RUN conda create -n ${CONDA_ENV_NAME} --clone base && conda clean -a -y
 
 # Copy dependency file
-COPY requirements-docker.txt .
+COPY requirements.txt requirements-docker.txt ./
 
 # Install pip dependencies in the new conda environment
 RUN . /opt/conda/etc/profile.d/conda.sh && \

@@ -178,7 +178,7 @@ with open(fileName +'_' + OPT[0] +'.pseudo','r') as f:#optimization level O0
 inputs = tokenizer(asm_func, return_tensors="pt").to(model.device)
 with torch.no_grad():
     outputs = model.generate(**inputs, max_new_tokens=2048)### max length to 4096, max new tokens should be below the range
-c_func_decompile = tokenizer.decode(outputs[0][len(inputs[0]):-1])
+c_func_decompile = tokenizer.decode(outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 
 with open(fileName +'_' + OPT[0] +'.pseudo','r') as f:#original file
     func = f.read()
@@ -189,7 +189,7 @@ print(f'refined function:\n{c_func_decompile}')
 ```
 
 ## HumanEval-Decompile
-Data for the pseudo-code are stored in ``llm4decompile/decompile-eval/decompile-eval-executable-gcc-ghidra.json``, using JSON list format. There are 164*4 (O0, O1, O2, O3) samples, each with five keys:
+Data for the pseudo-code are stored in ``legacy-test/decompile-eval-executable-gcc-ghidra.json``, using JSON list format. There are 164*4 (O0, O1, O2, O3) samples, each with five keys:
 
 *   ``task_id``: indicates the ID of the problem.
 *   ``type``: the optimization stage, is one of [O0, O1, O2, O3].
@@ -201,3 +201,4 @@ Please check the [evaluation scripts](https://github.com/albertan017/LLM4Decompi
 
 ## Thanks
 The Ghidra Headless script is originated from [galoget](https://github.com/galoget/ghidra-headless-scripts)
+

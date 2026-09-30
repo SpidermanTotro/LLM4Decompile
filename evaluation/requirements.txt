@@ -1,0 +1,4 @@
+# Optional legacy evaluation backends; use a separate environment for vLLM.
+-r ../requirements.txt
+text_generation
+vllm

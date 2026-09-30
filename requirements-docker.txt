@@ -1,4 +1,2 @@
-# Required for running demo.py
-tqdm
-numpy==1.23.3
-transformers==4.55.3
+# Core dependencies shared with the local runner.
+-r requirements.txt
